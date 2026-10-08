@@ -1,5 +1,5 @@
-// SuperBizAgent 前端应用
-class SuperBizAgentApp {
+// Argus 前端应用
+class ArgusApp {
     constructor() {
         this.apiBaseUrl = '/api';
         this.currentMode = 'quick'; // 'quick' 或 'stream'
@@ -1563,5 +1563,5 @@ document.head.appendChild(style);
 
 // 初始化应用
 document.addEventListener('DOMContentLoaded', () => {
-    new SuperBizAgentApp();
+    new ArgusApp();
 });

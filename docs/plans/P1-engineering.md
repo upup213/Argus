@@ -272,28 +272,28 @@ T1 与 T2 可并行启动（T1 的测试依赖可在 T2 同一次 pom 变更中�
          show-details: never      # 健康详情不外泄（P0 脱敏精神）
    ```
    注：Actuator 端点默认无鉴权，P1 阶段建议将 `/actuator/**` 一并纳入 P0 的 `X-API-Key` 过滤器（或仅内网暴露），见第 7 节风险 #5。
-2. **指标命名（前缀 `sba.`，与 P2 5.2 完全一致，不得另起）**：
-   - `sba.llm.calls`（Counter，tag：`endpoint=chat|chat_stream|ai_ops`）、`sba.llm.latency`（Timer）、`sba.llm.tokens`（Counter，tag：`type=prompt|completion`，可选）。
-   - `sba.embedding.calls`（Counter）、`sba.embedding.latency`（Timer）。
-   - `sba.milvus.ops`（Counter，tag：`op=load|insert|delete|search`）、`sba.milvus.ops.latency`（Timer）。
-   - `sba.sse.sessions.active`（Gauge）。
+2. **指标命名（前缀 `argus.`，与 P2 5.2 完全一致，不得另起）**：
+   - `argus.llm.calls`（Counter，tag：`endpoint=chat|chat_stream|ai_ops`）、`argus.llm.latency`（Timer）、`argus.llm.tokens`（Counter，tag：`type=prompt|completion`，可选）。
+   - `argus.embedding.calls`（Counter）、`argus.embedding.latency`（Timer）。
+   - `argus.milvus.ops`（Counter，tag：`op=load|insert|delete|search`）、`argus.milvus.ops.latency`（Timer）。
+   - `argus.sse.sessions.active`（Gauge）。
 3. **埋点落点（已核实）**：
-   - `ChatService.executeChat`（第 173-179 行）：在 `agent.call(question)`（第 175 行）前后取 `Timer.Sample` 记录 `sba.llm.latency` 与 `sba.llm.calls`；token 计数需从 `response.getMetadata()`（`Usage`）读取——当前 `executeChat` 返回 `String`（第 178 行 `response.getText()`）丢弃了 usage，需在方法内记录后再返回 text（不改公开签名），或记录为可选指标。
-   - `AiOpsService.executeAiOpsAnalysis`（第 51-71 行）：在 `supervisorAgent.invoke(taskPrompt)`（第 70 行）外层记录 `sba.llm.calls`（tag=ai_ops）与 latency；token 若 `OverAllState` 不可得则省略，仅在 `sba.llm.calls` 计数。
-   - `VectorEmbeddingService.generateEmbedding`（第 76 行 `textEmbedding.call(param)` 第 102 行）与 `generateEmbeddings`（第 152 行 `textEmbedding.call(param)` 第 175 行）：外层记录 `sba.embedding.calls`/`sba.embedding.latency`；批量接口单"次"含一批文本，口径在指标描述中注明（与 P2 6.2 口径一致）。
-   - Milvus 操作：本阶段最小埋点在 `VectorIndexService`（`loadCollection` 第 186-190、259-263 行、`delete` 第 203 行、`insert` 第 297 行）与 `VectorSearchService.search`（第 62 行）外层记录 `sba.milvus.ops`；T1 抽取 Repository 前暂以 Service 层计时（P2 T1 落地 Repository 后下沉到 Repository 层，保持指标名不变）。
-   - `ChatController`：`chatStream`（第 144 行）与 `aiOps`（第 285 行）维护 `AtomicInteger sseActiveSessions`，在 `executor.execute` 前 +1、`emitter.complete()`/`completeWithError()` 后 -1，通过 `Gauge` 暴露 `sba.sse.sessions.active`。
+   - `ChatService.executeChat`（第 173-179 行）：在 `agent.call(question)`（第 175 行）前后取 `Timer.Sample` 记录 `argus.llm.latency` 与 `argus.llm.calls`；token 计数需从 `response.getMetadata()`（`Usage`）读取——当前 `executeChat` 返回 `String`（第 178 行 `response.getText()`）丢弃了 usage，需在方法内记录后再返回 text（不改公开签名），或记录为可选指标。
+   - `AiOpsService.executeAiOpsAnalysis`（第 51-71 行）：在 `supervisorAgent.invoke(taskPrompt)`（第 70 行）外层记录 `argus.llm.calls`（tag=ai_ops）与 latency；token 若 `OverAllState` 不可得则省略，仅在 `argus.llm.calls` 计数。
+   - `VectorEmbeddingService.generateEmbedding`（第 76 行 `textEmbedding.call(param)` 第 102 行）与 `generateEmbeddings`（第 152 行 `textEmbedding.call(param)` 第 175 行）：外层记录 `argus.embedding.calls`/`argus.embedding.latency`；批量接口单"次"含一批文本，口径在指标描述中注明（与 P2 6.2 口径一致）。
+   - Milvus 操作：本阶段最小埋点在 `VectorIndexService`（`loadCollection` 第 186-190、259-263 行、`delete` 第 203 行、`insert` 第 297 行）与 `VectorSearchService.search`（第 62 行）外层记录 `argus.milvus.ops`；T1 抽取 Repository 前暂以 Service 层计时（P2 T1 落地 Repository 后下沉到 Repository 层，保持指标名不变）。
+   - `ChatController`：`chatStream`（第 144 行）与 `aiOps`（第 285 行）维护 `AtomicInteger sseActiveSessions`，在 `executor.execute` 前 +1、`emitter.complete()`/`completeWithError()` 后 -1，通过 `Gauge` 暴露 `argus.sse.sessions.active`。
 4. **MDC traceId 过滤器**（`common.TraceIdFilter`）：
    - 读取请求头 `X-Trace-Id`，若无则生成 UUID；写入 `MDC.put("traceId", ...)`，响应头回写 `X-Trace-Id`；`finally` 清理 MDC。
    - 注入 `MeterRegistry` 不需要；仅依赖 SLF4J MDC。日志 pattern 需在 `application.yml`/logback 配置中追加 `%X{traceId}`（当前无 logback 自定义文件，可加 `logback-spring.xml` 或依赖默认 pattern，实施时补 `logging.pattern.level` 含 traceId）。
    - 与 P2 对齐：P2 的异步索引任务需把 traceId 透传到任务线程（`TaskDecorator`），本阶段过滤器产出 traceId 供其复用，命名与 P2 5.2 一致。
 
 **验收标准**
-- `GET /actuator/prometheus`（带 `X-API-Key`）可见 `sba.llm.*`、`sba.embedding.*`、`sba.milvus.*`、`sba.sse.sessions.active` 四类指标。
-- 跑一轮 `/api/chat` + 上传 + `/api/chat_stream`（mock 或真实），`sba.llm.calls`/`sba.embedding.calls`/`sba.milvus.ops` 计数递增且 latency 有值。
+- `GET /actuator/prometheus`（带 `X-API-Key`）可见 `argus.llm.*`、`argus.embedding.*`、`argus.milvus.*`、`argus.sse.sessions.active` 四类指标。
+- 跑一轮 `/api/chat` + 上传 + `/api/chat_stream`（mock 或真实），`argus.llm.calls`/`argus.embedding.calls`/`argus.milvus.ops` 计数递增且 latency 有值。
 - 请求带/不带 `X-Trace-Id`：响应头回写 traceId，日志出现 `traceId` 字段；并发请求 traceId 不串号。
-- SSE 会话建立时 `sba.sse.sessions.active` +1，完成/断开后归零（无泄漏）。
-- 指标命名全部 `sba.` 前缀，与 P2 5.2 列表一致。
+- SSE 会话建立时 `argus.sse.sessions.active` +1，完成/断开后归零（无泄漏）。
+- 指标命名全部 `argus.` 前缀，与 P2 5.2 列表一致。
 
 ---
 
@@ -437,7 +437,7 @@ T1 与 T2 可并行启动（T1 的测试依赖可在 T2 同一次 pom 变更中�
 | B. AOP/切面统一拦截 | 一处定义 | 需按方法名/注解匹配，对 SDK 方法（`textEmbedding.call`/`agent.call`）无法切入；token 计数做不到 |
 | C. 仅靠 Actuator 默认指标（JVM/HTTP） | 零代码 | 无 LLM/embedding/Milvus 业务指标，无法满足 P2 压测口径 |
 
-**选 A**：远程付费调用（LLM/embedding）与外部依赖（Milvus）是核心成本/故障点，必须精确埋点；AOP 对第三方 SDK 调用无能为力。指标命名 `sba.` 前缀与 P2 5.2 完全一致。
+**选 A**：远程付费调用（LLM/embedding）与外部依赖（Milvus）是核心成本/故障点，必须精确埋点；AOP 对第三方 SDK 调用无能为力。指标命名 `argus.` 前缀与 P2 5.2 完全一致。
 
 ---
 
@@ -459,11 +459,11 @@ T1 与 T2 可并行启动（T1 的测试依赖可在 T2 同一次 pom 变更中�
 
 | P2 约定 | P1 对齐方式 |
 |---|---|
-| 指标前缀 `sba.`（`sba.llm.calls/latency/tokens`、`sba.embedding.calls/latency`、`sba.milvus.ops/latency`、`sba.sse.sessions.active`） | T5 指标命名**完全沿用该列表**，不另起；P2 新增的 `sba.index.*`/`sba.redis.*`/`sba.cache.embedding.*` 挂同一前缀 |
+| 指标前缀 `argus.`（`argus.llm.calls/latency/tokens`、`argus.embedding.calls/latency`、`argus.milvus.ops/latency`、`argus.sse.sessions.active`） | T5 指标命名**完全沿用该列表**，不另起；P2 新增的 `argus.index.*`/`argus.redis.*`/`argus.cache.embedding.*` 挂同一前缀 |
 | MDC traceId | T5 `TraceIdFilter` 产出 traceId；P2 任务线程 `TaskDecorator` 透传复用，字段名 `traceId` 一致 |
 | 公共类落点 `org.example.common`（ApiResponse/BizException/GlobalExceptionHandler）与 `org.example.util.FilenameSanitizer` | T3/T1 严格落此两包；P2 的 `SessionStore` 系列落 `org.example.common.session` 不冲突 |
 | `VectorRepository` 落点 `org.example.repository` | P1 不占该包（P2 T1 专属）；T1 的 Milvus 单测打桩 `MilvusServiceClient`，P2 抽 Repository 后改打桩 Repository |
-| Redis key 前缀 `sba:` | P1 不引入 Redis，不占用 key；该前缀约定由 P2 落地 |
+| Redis key 前缀 `argus:` | P1 不引入 Redis，不占用 key；该前缀约定由 P2 落地 |
 | 索引任务 API 走 `/api/index/tasks` | P1 不新增 `/api/**` 业务端点（仅 `/actuator/**` 需鉴权说明）；`/api/index/tasks` 由 P2 落地 |
 | `BizException` + `GlobalExceptionHandler` 承接 400/429/503 | T3/T4 落地该体系，P2 的文件超限(400)、队列满(503)、限流(429) 直接复用 |
 | JUnit 5 + Mockito 测试底座 | T1 落地，P2 各验收单测基于此底座 |
@@ -473,7 +473,7 @@ T1 与 T2 可并行启动（T1 的测试依赖可在 T2 同一次 pom 变更中�
 1. **测试约定**：`src/test/java` 包结构镜像 `src/main/java`；测试类命名 `{被测类}Test`；方法命名 `{方法}_{场景}_{期望}`；断言 AssertJ、mock Mockito；禁止真实网络/容器；覆盖率门禁 `org.example.service`/`org.example.agent.tool` ≥ 70%（JaCoCo）。
 2. **统一异常约定**：业务异常一律抛 `org.example.common.BizException`（携带 `ErrorCode` + 脱敏 message）；所有 HTTP 错误经 `org.example.common.GlobalExceptionHandler` 输出 `{"code":<HTTP码>,"message":<脱敏文本>,"data":null}`；兜底 `Exception` 固定返回 `{"code":500,"message":"internal error","data":null}` 不泄露堆栈。SSE 流内错误例外（用 `SseMessage.error`）。
 3. **统一响应约定**：成功 `{"code":0,"message":"success","data":<对象>}`（`org.example.common.ApiResponse` 唯一实现，`code=0` 而非 200）。
-4. **指标命名约定**：统一前缀 `sba.`，四类基础指标 `sba.llm.*`/`sba.embedding.*`/`sba.milvus.*`/`sba.sse.sessions.active`；P2/P3 新增指标同前缀。
+4. **指标命名约定**：统一前缀 `argus.`，四类基础指标 `argus.llm.*`/`argus.embedding.*`/`argus.milvus.*`/`argus.sse.sessions.active`；P2/P3 新增指标同前缀。
 5. **traceId 约定**：请求头 `X-Trace-Id`（缺省生成 UUID），MDC 键 `traceId`，响应头回写；异步链路用 `TaskDecorator` 透传。
 6. **依赖治理约定**：版本一律由 Spring Boot BOM 管理，禁止 `dependencyManagement` 手动锁定 BOM 已管理的 artifact；JSON 业务序列化一律 Jackson，Gson 仅限 Milvus metadata 边界；编译器用 `release 17`。
 7. **工具类落点约定**：`org.example.util`（`FilenameSanitizer`、`JsonUtil` 等），`org.example.common`（ApiResponse/BizException/ErrorCode/GlobalExceptionHandler/TraceIdFilter）。
@@ -488,7 +488,7 @@ T1 与 T2 可并行启动（T1 的测试依赖可在 T2 同一次 pom 变更中�
 - **Service 层 Mockito 单测**（T1）：`VectorIndexService.indexSingleFile`（文件不存在、embedding 异常上抛、loadCollection 65535 容错分支），mock `MilvusServiceClient`/`VectorEmbeddingService`/`DocumentChunkService`。
 - **异常体系单测**（T3）：`GlobalExceptionHandler` 对 `BizException`/`MethodArgumentNotValidException`/`Exception` 三类的响应体与 HTTP 码。
 - **参数校验单测**（T4）：`VectorSearchService` topK 边界（0/1/20/21）、`QueryLogsTools.resolveRegion`（合法/非法/null）。
-- **指标冒烟**（T5）：`/actuator/prometheus` 可见 `sba.*` 指标；traceId 透传。
+- **指标冒烟**（T5）：`/actuator/prometheus` 可见 `argus.*` 指标；traceId 透传。
 
 ### 6.2 怎么回归
 
@@ -496,7 +496,7 @@ T1 与 T2 可并行启动（T1 的测试依赖可在 T2 同一次 pom 变更中�
 |---|---|
 | 构建 | `mvn clean verify`（build + test + JaCoCo 报告 + 门禁）在无环境变量的干净环境跑通 |
 | 对话 | `/api/chat`（带 `X-API-Key`）一次问答；空 Question 返回 400；业务失败返回 500 统一错误体（非 200 包裹） |
-| 流式 | `/api/chat_stream`、`/api/ai_ops` SSE 正常收流；流内错误走 `SseMessage.error`；`sba.sse.sessions.active` 建立/归零 |
+| 流式 | `/api/chat_stream`、`/api/ai_ops` SSE 正常收流；流内错误走 `SseMessage.error`；`argus.sse.sessions.active` 建立/归零 |
 | 上传 | `/api/upload` 上传 txt/md 正常 + 非法扩展名 400 + 攻击文件名 400（P0 T2 回归）；`getFileExtension` 白名单行为不变 |
 | 工具调用 | `queryPrometheusAlerts`/`queryLogs`/`queryInternalDocs` 正常路径返回 JSON 结构不变；错误分支返回合法 JSON（`readValue` 可解析） |
 | 依赖 | `mvn dependency:tree` 无 jackson 版本漂移、无 devtools、lombok 来自 BOM |
@@ -511,7 +511,7 @@ T1 与 T2 可并行启动（T1 的测试依赖可在 T2 同一次 pom 变更中�
 - [ ] `/actuator/**` 有鉴权或确认仅内网暴露（风险 #5）
 - [ ] `X-API-Key` 鉴权 + 401 错误体回归通过（P0 T6）
 - [ ] 参数校验：空/超长 Question、非法 topK、非法 region 全部按预期（400 或回退）
-- [ ] `/actuator/prometheus` 可见 `sba.llm/embedding/milvus/sse` 指标，命名与 P2 一致
+- [ ] `/actuator/prometheus` 可见 `argus.llm/embedding/milvus/sse` 指标，命名与 P2 一致
 - [ ] 前端 `app.js` 对响应 `code` 的判断点已排查并适配 `code=0`（风险 #3）
 - [ ] 本方案 5.3 节约定已同步至 P2/P3 方案文档
 

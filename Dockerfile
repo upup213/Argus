@@ -8,8 +8,8 @@ RUN mvn -B package -DskipTests
 
 # ---- Run Stage ----
 FROM eclipse-temurin:17-jre
-RUN useradd -r -u 1001 sba
-USER sba
+RUN useradd -r -u 1001 argus
+USER argus
 WORKDIR /app
 COPY --from=build /build/target/*.jar app.jar
 EXPOSE 9900

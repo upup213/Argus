@@ -1,6 +1,9 @@
 package org.example.common.cache;
 
 import com.alibaba.dashscope.embeddings.TextEmbedding;
+import com.alibaba.dashscope.embeddings.TextEmbeddingParam;
+import com.alibaba.dashscope.embeddings.TextEmbeddingResult;
+import com.alibaba.dashscope.embeddings.TextEmbeddingResultItem;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -14,7 +17,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import java.security.MessageDigest;
 import java.nio.charset.StandardCharsets;
@@ -22,7 +24,7 @@ import java.nio.charset.StandardCharsets;
 /**
  * Embedding 结果 Redis 缓存
  * <p>
- * Key = "sba:cache:embedding:" + SHA-256(text).hex
+ * Key = "argus:cache:embedding:" + SHA-256(text).hex
  * Value = JSON array of embedding vectors for that text
  * TTL configurable via cache.embedding.ttl (default 7 days)
  *
@@ -33,21 +35,24 @@ public class EmbeddingCache {
 
     private static final Logger logger = LoggerFactory.getLogger(EmbeddingCache.class);
 
-    private static final String CACHE_PREFIX = "sba:cache:embedding:";
+    private static final String CACHE_PREFIX = "argus:cache:embedding:";
     private static final int BATCH_SIZE = 32; // safe batch size for Redis write
 
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final TextEmbedding textEmbedding;
+    private final String model;
     private final Duration ttl;
 
     public EmbeddingCache(StringRedisTemplate redisTemplate,
                           ObjectMapper objectMapper,
                           TextEmbedding textEmbedding,
+                          @Value("${dashscope.embedding.model}") String model,
                           @Value("${cache.embedding.ttl:7d}") String ttlStr) {
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
         this.textEmbedding = textEmbedding;
+        this.model = model;
         this.ttl = parseDuration(ttlStr);
     }
 
@@ -66,21 +71,21 @@ public class EmbeddingCache {
             hashes.put(i, sha256hex(texts.get(i)));
         }
 
-        Map<Integer, List<List<Float>>> cacheHits = new LinkedHashMap<>();
+        Map<Integer, List<Float>> cacheHits = new LinkedHashMap<>();
         List<Integer> missIndices = new ArrayList<>();
 
-        // Async lookups for all keys
-        Map<String, CompletableFuture<String>> futures = new LinkedHashMap<>();
+        // 批量查 Redis 缓存
+        Map<Integer, String> cachedValues = new LinkedHashMap<>();
         for (Map.Entry<Integer, String> entry : hashes.entrySet()) {
             String key = CACHE_PREFIX + entry.getValue();
-            futures.put(entry.getKey().toString(), redisTemplate.opsForValue().getAsync(key).toCompletableFuture());
+            cachedValues.put(entry.getKey(), redisTemplate.opsForValue().get(key));
         }
 
         int hitsCounter = 0, missesCounter = 0;
         for (Map.Entry<Integer, String> entry : hashes.entrySet()) {
-            String val = futures.get(entry.getKey().toString()).get();
+            String val = cachedValues.get(entry.getKey());
             if (val != null && !val.isEmpty()) {
-                List<List<Float>> vec = objectMapper.readValue(val, new TypeReference<List<List<Float>>() {}>);
+                List<Float> vec = objectMapper.readValue(val, new TypeReference<List<Float>>() {});
                 cacheHits.put(entry.getKey(), vec);
                 hitsCounter++;
             } else {
@@ -97,19 +102,19 @@ public class EmbeddingCache {
 
             List<List<Float>> missVectors;
             if (missTexts.size() <= BATCH_SIZE) {
-                missVectors = textEmbedding.call(missTexts);
+                missVectors = embedBatch(missTexts);
             } else {
                 missVectors = new ArrayList<>();
                 for (int i = 0; i < missTexts.size(); i += BATCH_SIZE) {
                     List<String> sub = missTexts.subList(i, Math.min(i + BATCH_SIZE, missTexts.size()));
-                    missVectors.addAll(textEmbedding.call(sub));
+                    missVectors.addAll(embedBatch(sub));
                 }
             }
 
             // Store locally and persist to Redis
             int idx = 0;
             for (int i : missIndices) {
-                List<List<Float>> vec = missVectors.get(idx++);
+                List<Float> vec = missVectors.get(idx++);
                 cacheHits.put(i, vec);
                 String key = CACHE_PREFIX + hashes.get(i);
                 String jsonVal = objectMapper.writeValueAsString(vec);
@@ -128,6 +133,31 @@ public class EmbeddingCache {
     }
 
     // ---------- helpers ----------
+
+    /**
+     * 调用 DashScope TextEmbedding API 批量生成向量，返回与 texts 一一对应的向量列表。
+     */
+    private List<List<Float>> embedBatch(List<String> texts) throws Exception {
+        TextEmbeddingParam param = TextEmbeddingParam.builder()
+                .model(model)
+                .texts(texts)
+                .build();
+        TextEmbeddingResult result = textEmbedding.call(param);
+        if (result == null || result.getOutput() == null || result.getOutput().getEmbeddings() == null) {
+            throw new RuntimeException("DashScope API 返回空结果");
+        }
+        List<TextEmbeddingResultItem> items = result.getOutput().getEmbeddings();
+        List<List<Float>> vectors = new ArrayList<>(items.size());
+        for (TextEmbeddingResultItem item : items) {
+            List<Double> doubles = item.getEmbedding();
+            List<Float> floats = new ArrayList<>(doubles.size());
+            for (Double d : doubles) {
+                floats.add(d.floatValue());
+            }
+            vectors.add(floats);
+        }
+        return vectors;
+    }
 
     private static Duration parseDuration(String s) {
         s = s.trim().toLowerCase();

@@ -49,7 +49,7 @@ public class IndexTaskManager {
         IndexTask task = IndexTask.pending(IndexTask.TaskType.FILE, filePath);
         tasks.put(task.getTaskId(), task);
 
-        meterRegistry.counter("sba.index.task.active", "type", "FILE").increment();
+        meterRegistry.counter("argus.index.task.active", "type", "FILE").increment();
 
         indexExecutor.execute(() -> runWithRetry(task.getTaskId()));
         return task.getTaskId();
@@ -62,7 +62,7 @@ public class IndexTaskManager {
         IndexTask task = IndexTask.pending(IndexTask.TaskType.DIRECTORY_REBUILD, directoryPath);
         tasks.put(task.getTaskId(), task);
 
-        meterRegistry.counter("sba.index.task.active", "type", "DIRECTORY_REBUILD").increment();
+        meterRegistry.counter("argus.index.task.active", "type", "DIRECTORY_REBUILD").increment();
 
         indexExecutor.execute(() -> runWithRetry(task.getTaskId()));
         return task.getTaskId();
@@ -94,7 +94,7 @@ public class IndexTaskManager {
     /**
      * Execute the actual indexing operation based on task type.
      */
-    private void executeTask(IndexTask task) {
+    private void executeTask(IndexTask task) throws Exception {
         switch (task.getType()) {
             case FILE -> vectorIndexService.indexSingleFile(task.getTarget());
             case DIRECTORY_REBUILD -> vectorIndexService.indexDirectory(task.getTarget());
@@ -158,8 +158,8 @@ public class IndexTaskManager {
             }
             IndexTask updated = new IndexTask();
             updated.setTaskId(taskId);
-            updated.type = existing.getType();
-            updated.target = existing.getTarget();
+            updated.setType(existing.getType());
+            updated.setTarget(existing.getTarget());
             updated.setStatus(IndexTask.TaskStatus.RUNNING);
             updated.setProgressDone(0);
             updated.setProgressTotal(1);
@@ -177,8 +177,8 @@ public class IndexTaskManager {
     private void transitionSuccess(IndexTask task) {
         IndexTask updated = new IndexTask();
         updated.setTaskId(task.getTaskId());
-        updated.type = task.getType();
-        updated.target = task.getTarget();
+        updated.setType(task.getType());
+        updated.setTarget(task.getTarget());
         updated.setStatus(IndexTask.TaskStatus.SUCCESS);
         updated.setProgressDone(task.getProgressTotal() > 0 ? task.getProgressTotal() : 1);
         updated.setProgressTotal(task.getProgressTotal() > 0 ? task.getProgressTotal() : 1);
@@ -196,8 +196,8 @@ public class IndexTaskManager {
     private void transitionFailed(IndexTask task, String failReason) {
         IndexTask updated = new IndexTask();
         updated.setTaskId(task.getTaskId());
-        updated.type = task.getType();
-        updated.target = task.getTarget();
+        updated.setType(task.getType());
+        updated.setTarget(task.getTarget());
         updated.setStatus(IndexTask.TaskStatus.FAILED);
         updated.setFailReason(failReason);
         updated.setStartTime(task.getStartTime());
@@ -233,7 +233,7 @@ public class IndexTaskManager {
     private void cleanupTaskActiveMetric(IndexTask.TaskType type) {
         String tagKey = type.name();
         try {
-            meterRegistry.counter("sba.index.task.active", "type", tagKey).increment(-1);
+            meterRegistry.counter("argus.index.task.active", "type", tagKey).increment(-1);
         } catch (IllegalArgumentException e) {
             // Counter may not exist if Micrometer registry doesn't support decrement; ignore
         }

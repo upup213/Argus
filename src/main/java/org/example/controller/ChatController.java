@@ -24,6 +24,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import io.micrometer.core.instrument.Gauge;
@@ -89,14 +90,21 @@ public class ChatController {
     // 本地跟踪活跃会话（仅用于 LRU 监控和 Prometheus Gauge），不参与实际存储
     private final Map<String, Long> activeSessions = new HashMap<>();
 
+    /** 活跃 SSE 流式会话计数（用于 Prometheus Gauge） */
+    private final AtomicInteger sseActiveSessions = new AtomicInteger();
+
     /** 会话最大数量限制，超过时触发 LRU 淘汰 */
     @Value("${session.max-size:10000}")
     private int sessionMaxSize;
 
+    /** 会话 TTL，用于本地跟踪条目的过期清理 */
+    @Value("${session.ttl:24h}")
+    private Duration sessionTtl;
+
     @PostConstruct
     public void initGauges() {
         if (meterRegistry != null) {
-            Gauge.builder("sba.sse.sessions.active", sseActiveSessions::get).register(meterRegistry);
+            Gauge.builder("argus.sse.sessions.active", sseActiveSessions::get).register(meterRegistry);
         }
     }
 

@@ -1,4 +1,4 @@
-# SuperBizAgent Makefile
+# Argus Makefile
 # 用于自动化项目初始化和文档向量化
 
 # 配置变量
@@ -19,7 +19,7 @@ NC = \033[0m # No Color
 
 # 默认目标：显示帮助信息
 help:
-	@echo "$(GREEN)SuperBizAgent Makefile$(NC)"
+	@echo "$(GREEN)Argus Makefile$(NC)"
 	@echo ""
 	@echo "可用命令："
 	@echo "  $(YELLOW)make init$(NC)    - 🚀 一键初始化（启动Docker → 启动服务 → 上传文档）"
@@ -42,7 +42,7 @@ help:
 
 # 一键初始化：启动Docker → 启动服务 → 检查服务 → 上传文档
 init:
-	@echo "$(GREEN)🚀 开始一键初始化 SuperBizAgent...$(NC)"
+	@echo "$(GREEN)🚀 开始一键初始化 Argus...$(NC)"
 	@echo ""
 	@echo "$(YELLOW)步骤 1/4: 启动 Docker Compose（Milvus 向量数据库）$(NC)"
 	@$(MAKE) up

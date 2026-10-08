@@ -235,7 +235,7 @@ T1（CLS 真实接入，数据源地基）
    // 返回按 source 聚合的文档摘要：source（文件名）、chunkCount、最近索引时间
    public List<DocumentSummary> listDocuments() { ... }
    ```
-   依赖 P2 T6 的 `_source` 字段化（标量 `source` 字段 + 标量索引），用 Milvus `QueryParam` 按 `source` 分组统计（或 `count(*)` 聚合）；若 P2 尚未落地 `source` 标量字段，退化为遍历查询（临时），文档中标注该依赖。`DocumentSummary` 至少含 `source`（脱敏文件名）、`chunkCount`、`lastIndexedAt`（来自 metadata 的 `indexedAt`，需在 P2 写入链路补充该字段，或从 `sba:index:task:*` 取最近一次 SUCCESS 时间）。
+   依赖 P2 T6 的 `_source` 字段化（标量 `source` 字段 + 标量索引），用 Milvus `QueryParam` 按 `source` 分组统计（或 `count(*)` 聚合）；若 P2 尚未落地 `source` 标量字段，退化为遍历查询（临时），文档中标注该依赖。`DocumentSummary` 至少含 `source`（脱敏文件名）、`chunkCount`、`lastIndexedAt`（来自 metadata 的 `indexedAt`，需在 P2 写入链路补充该字段，或从 `argus:index:task:*` 取最近一次 SUCCESS 时间）。
 
 2. **文档列表接口**：
    ```
@@ -381,7 +381,7 @@ T1（CLS 真实接入，数据源地基）
      api-key: ${APP_API_KEY}                 # 保留单 Key（向后兼容）
      api-key-map: ${APP_API_KEY_MAP:}        # 可选，形如 key1:operator1,key2:operator2
    ```
-   `ApiKeyAuthFilter` 鉴权通过后把命中的操作者名写入请求属性（如 `request.setAttribute("sba.operator", name)`，无映射时用 `anonymous`/`default`），供审计与日志使用。**不提供**权限分级、密码登录、会话登录态。
+   `ApiKeyAuthFilter` 鉴权通过后把命中的操作者名写入请求属性（如 `request.setAttribute("argus.operator", name)`，无映射时用 `anonymous`/`default`），供审计与日志使用。**不提供**权限分级、密码登录、会话登录态。
 
 2. **审计日志**（结构化，D5 决策，不落数据库）：
    ```java
@@ -392,7 +392,7 @@ T1（CLS 真实接入，数据源地基）
    - 覆盖动作：`ASK`（问答，记录 question 脱敏摘要 + sessionId）、`UPLOAD`（文件名）、`DELETE_DOCUMENT`（文件名）、`REINDEX`（文件名 + taskId）、`QUERY_LOGS`/`QUERY_ALERTS`（可选，工具调用侧记录，避免高频刷屏）；
    - 内容脱敏：question 全文仅存哈希 + 前 50 字摘要（防敏感信息落审计），detail 不含密钥/向量/完整日志正文。
 
-3. **指标**：审计事件计数挂 P1 Micrometer（`sba.audit.events`，按 action 打 tag）。
+3. **指标**：审计事件计数挂 P1 Micrometer（`argus.audit.events`，按 action 打 tag）。
 
 **验收标准**
 - 问答、上传、删除文档、重建四类动作均产生结构化审计 JSON 行，含 operator、traceId、时间、结果；
@@ -474,7 +474,7 @@ T1（CLS 真实接入，数据源地基）
 
 | P1 约定 | P3 沿用方式 |
 |---|---|
-| 指标前缀 `sba.` | 新增指标同前缀：`sba.rag.calls/latency`（/api/rag）、`sba.cls.calls/latency`、`sba.prometheus.calls/latency`、`sba.audit.events`（按 action 打 tag） |
+| 指标前缀 `argus.` | 新增指标同前缀：`argus.rag.calls/latency`（/api/rag）、`argus.cls.calls/latency`、`argus.prometheus.calls/latency`、`argus.audit.events`（按 action 打 tag） |
 | MDC traceId | CLS/Prometheus 工具调用、审计日志、`/api/rag` 全链路透传 traceId，问题可追踪 |
 | `org.example.common` / `org.example.util.FilenameSanitizer` | 审计类落 `org.example.common.audit`；文件名净化复用 `FilenameSanitizer`（T4 删除/重建） |
 | `BizException` + `GlobalExceptionHandler` | CLS/Prometheus 调用失败、凭证缺失、文件名非法统一走该体系，响应体形状与 P0 5.2 一致 |
@@ -486,7 +486,7 @@ T1（CLS 真实接入，数据源地基）
 |---|---|
 | 索引任务 API（`POST /api/index/tasks`、`GET /api/index/tasks/{taskId}`、`GET /api/index/tasks`，状态 PENDING/RUNNING/SUCCESS/FAILED） | T5 管理页状态徽标直接对接；T4 `POST /api/documents/{fileName}/reindex` 复用 `IndexTaskManager.submitFile`，不改任务 API 语义 |
 | `VectorRepository`（`insertBatch/deleteBySource/search/loadCollectionOnce`） | T4 扩展只读能力 `listDocuments()`；删除走 `deleteBySource`；检索（T3）走 `search`；Controller 不再拼 gRPC |
-| Redis key 前缀 `sba:` | T6 会话列表接口复用 `sba:session:{id}`（P2 SessionStore）；P3 不再新增自造前缀 |
+| Redis key 前缀 `argus:` | T6 会话列表接口复用 `argus:session:{id}`（P2 SessionStore）；P3 不再新增自造前缀 |
 | COSINE 度量 + `_source` 标量字段化 + 标量索引 | T4 `listDocuments` 按 `source` 聚合依赖 P2 T6 已落地（未落地则临时退化并标注依赖） |
 | `milvus.collection-name` 配置化 | 本期不扩展多库；管理接口的 source 维度天然基于当前 collection |
 
@@ -537,8 +537,8 @@ T1（CLS 真实接入，数据源地基）
 | 3 | P2 的 `VectorRepository` / `_source` 标量字段未如期落地 | T4 `listDocuments` 聚合无法用索引高效实现 | 临时退化为遍历查询并标注依赖；删除/重建仍可用 `deleteBySource`（依赖 P0/P2 转义，与字段化无关） |
 | 4 | `/api/rag` 与 `/api/chat` 的 LLM 调用放大费用（两条链路都烧 token） | 费用上升 | 两条链路明确职责（rag=纯检索问答、chat=工具编排），默认前端只走其一；`rag.model` 选轻量档可降本；必要时对 `/api/rag` 加 P2 Resilience4j 限流 |
 | 5 | 删除文档误删（转义遗漏或白名单绕过） | 数据丢失 | 三重防护沿用 P0（文件名白名单 + `escapeExprString` + 越界校验）；删除前审计日志记录 source；上线前注入 payload 全套回归（6.1 T4） |
-| 6 | 前端"停止生成"中断流后，后端 SSE/线程未及时回收 | 线程泄漏 | 复用 P2 有界 `sseExecutor` 与 `AbortController` 联动；`completeWithError`/超时兜底；`sba.sse.sessions.active` 监控 |
+| 6 | 前端"停止生成"中断流后，后端 SSE/线程未及时回收 | 线程泄漏 | 复用 P2 有界 `sseExecutor` 与 `AbortController` 联动；`completeWithError`/超时兜底；`argus.sse.sessions.active` 监控 |
 | 7 | 多 Key 映射引入后，审计归属错误（Key 泄露被冒用） | 审计误导 | 明确 Key 仍是共享口令（D6）；Key 轮换流程沿用 P0 T1；审计记录 operator + traceId，便于事后核对 |
 | 8 | 评测集质量差（标注不准/覆盖窄）导致阈值失真 | 评估失去意义 | 首期人工构造并双人复核；评测集与坏例纳入版本管理；recall 阈值作为"基线"而非硬指标，先度量再定目标 |
-| 9 | 审计日志文件无限增长/含敏感信息 | 磁盘耗尽、二次泄露 | P1 logback 滚动策略；审计内容只存哈希+摘要；`sba.audit.events` 监控异常突增 |
+| 9 | 审计日志文件无限增长/含敏感信息 | 磁盘耗尽、二次泄露 | P1 logback 滚动策略；审计内容只存哈希+摘要；`argus.audit.events` 监控异常突增 |
 | 10 | CLS/Prometheus 是外部新故障面（网络抖动/限流） | 工具调用失败、问答质量下降 | `ClsLogClient`/`fetchPrometheusAlerts` 超时+重试（复用 P2 Resilience4j 或 SDK 内建重试）；失败返回脱敏错误 JSON，Agent 可引导用户重试 |

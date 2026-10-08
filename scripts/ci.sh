@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SuperBizAgent CI 门禁脚本（Linux/macOS 与 GitHub Actions 使用）
+# Argus CI 门禁脚本（Linux/macOS 与 GitHub Actions 使用）
 # 本地 Windows 用法：在 Git Bash / WSL 中运行 `bash scripts/ci.sh`，
 # 或使用 PowerShell 等价脚本（后续提供 scripts/ci.ps1）。
 # 前提：已安装 JDK 17 并设置 JAVA_HOME（CI runner 已预置）。

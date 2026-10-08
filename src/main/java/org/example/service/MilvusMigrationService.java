@@ -51,7 +51,7 @@ public class MilvusMigrationService {
         String collectionName = properties.getCollectionName();
         MilvusServiceClient client = milvusClientFactory.createClient();
         try {
-            if (!client.collectionExists(collectionName)) {
+            if (!milvusClientFactory.collectionExists(client, collectionName)) {
                 createNewCollection(client, collectionName);
                 logger.info("Created new collection: {}", collectionName);
             } else {

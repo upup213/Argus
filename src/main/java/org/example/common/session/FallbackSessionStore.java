@@ -5,11 +5,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
-import org.springframework.data.redis.connection.RedisConnectionFailureException;
-import org.springframework.data.redis.serializer.RedisSystemException;
+import org.springframework.data.redis.RedisConnectionFailureException;
+import org.springframework.data.redis.RedisSystemException;
 import org.springframework.stereotype.Service;
 
-import javax.net.SocketException;
+import java.net.SocketException;
 import java.net.ConnectException;
 import java.time.Duration;
 import java.util.List;
@@ -103,7 +103,7 @@ public class FallbackSessionStore implements SessionStore {
                 log.error("Redis不可用，会话存储已降级到内存模式");
             }
             if (meterRegistry != null) {
-                meterRegistry.counter("sba.redis.fallback").increment();
+                meterRegistry.counter("argus.redis.fallback").increment();
             }
         }
     }

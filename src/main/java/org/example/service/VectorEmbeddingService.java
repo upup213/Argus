@@ -110,7 +110,7 @@ public class VectorEmbeddingService {
 
             // 调用 API5
             Timer.Sample sample = Timer.start(meterRegistry);
-            Counter c = meterRegistry.counter("sba.embedding.calls");
+            Counter c = meterRegistry.counter("argus.embedding.calls");
             try {
                 TextEmbeddingResult result = textEmbedding.call(param);
 
@@ -122,7 +122,7 @@ public class VectorEmbeddingService {
 
                 return floatEmbedding;
             } finally {
-                sample.stop(Timer.builder("sba.embedding.latency")
+                sample.stop(Timer.builder("argus.embedding.latency")
                         .register(meterRegistry));
                 c.increment();
             }

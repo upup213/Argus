@@ -13,14 +13,14 @@ import java.util.Optional;
 
 /**
  * Redis 会话存储实现
- * Key 格式: sba:session:{sessionId}
+ * Key 格式: argus:session:{sessionId}
  * Value: Jackson 序列化的 JSON
  */
 @Slf4j
 @Service
 public class RedisSessionStore implements SessionStore {
 
-    private static final String SESSION_KEY_PREFIX = "sba:session:";
+    private static final String SESSION_KEY_PREFIX = "argus:session:";
 
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
@@ -42,7 +42,7 @@ public class RedisSessionStore implements SessionStore {
             redisTemplate.opsForValue().set(key, json, ttl);
         } catch (Exception e) {
             log.error("保存会话到 Redis 失败 - sessionId: {}", sessionId, e);
-            throw e;
+            throw new RuntimeException("保存会话失败", e);
         }
     }
 
@@ -60,7 +60,7 @@ public class RedisSessionStore implements SessionStore {
             return Optional.of(data);
         } catch (Exception e) {
             log.error("从 Redis 读取会话失败 - sessionId: {}", sessionId, e);
-            throw e;
+            throw new RuntimeException("读取会话失败", e);
         }
     }
 
@@ -69,10 +69,10 @@ public class RedisSessionStore implements SessionStore {
         String key = buildKey(sessionId);
         try {
             // 获取当前消息列表
-            List<SessionData.MessageEntry> messages = getMessagesFromRedis(sessionId);
+            List<MessageEntry> messages = getMessagesFromRedis(sessionId);
 
             // 追加新消息
-            SessionData.MessageEntry entry = new SessionData.MessageEntry();
+            MessageEntry entry = new MessageEntry();
             entry.setRole(role);
             entry.setContent(content);
             messages.add(entry);
@@ -89,17 +89,17 @@ public class RedisSessionStore implements SessionStore {
             redisTemplate.opsForValue().set(msgListKey, json, ttl);
 
             // 确保会话元数据也存在（滑动 TTL）
-            getSession(sessionId).ifPresent(SessionStore.super::saveSession);
+            getSession(sessionId).ifPresent(data -> saveSession(sessionId, data));
         } catch (Exception e) {
             log.error("向会话添加消息失败 - sessionId: {}", sessionId, e);
-            throw e;
+            throw new RuntimeException("添加会话消息失败", e);
         }
     }
 
     @Override
     public List<MessageEntry> getMessages(String sessionId) {
         try {
-            List<SessionData.MessageEntry> messages = getMessagesFromRedis(sessionId);
+            List<MessageEntry> messages = getMessagesFromRedis(sessionId);
             // 滑动 TTL
             refreshTtl(sessionId);
             return convertToMessageEntries(messages);
@@ -146,7 +146,7 @@ public class RedisSessionStore implements SessionStore {
     /**
      * 从 Redis 读取消息列表（内部方法，不暴露滑动 TTL）
      */
-    private List<SessionData.MessageEntry> getMessagesFromRedis(String sessionId) {
+    private List<MessageEntry> getMessagesFromRedis(String sessionId) {
         String msgKey = buildMsgListKey(sessionId);
         String json = redisTemplate.opsForValue().get(msgKey);
         if (json == null) {
@@ -154,14 +154,14 @@ public class RedisSessionStore implements SessionStore {
             return getSession(sessionId)
                     .map(data -> {
                         // 创建新的消息列表key并开始追踪
-                        return new ArrayList<SessionData.MessageEntry>();
+                        return new ArrayList<MessageEntry>();
                     })
                     .orElse(new ArrayList<>());
         }
         try {
             return objectMapper.readValue(json,
                     objectMapper.getTypeFactory().constructCollectionType(List.class,
-                            SessionData.MessageEntry.class));
+                            MessageEntry.class));
         } catch (Exception e) {
             log.error("反序列化消息列表失败 - sessionId: {}", sessionId, e);
             return new ArrayList<>();
@@ -184,9 +184,9 @@ public class RedisSessionStore implements SessionStore {
         }
     }
 
-    private List<MessageEntry> convertToMessageEntries(List<SessionData.MessageEntry> entries) {
+    private List<MessageEntry> convertToMessageEntries(List<MessageEntry> entries) {
         List<MessageEntry> result = new ArrayList<>();
-        for (SessionData.MessageEntry entry : entries) {
+        for (MessageEntry entry : entries) {
             MessageEntry me = new MessageEntry();
             me.setRole(entry.getRole());
             me.setContent(entry.getContent());

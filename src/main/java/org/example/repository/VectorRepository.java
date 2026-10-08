@@ -56,7 +56,7 @@ public class VectorRepository {
      */
     public void loadCollectionOnce(String collectionName) {
         Timer.Sample sample = Timer.start(meterRegistry);
-        Counter c = meterRegistry.counter("sba.milvus.ops", "op", "load");
+        Counter c = meterRegistry.counter("argus.milvus.ops", "op", "load");
         try {
             R<RpcStatus> resp = client.loadCollection(
                 LoadCollectionParam.newBuilder()
@@ -67,7 +67,7 @@ public class VectorRepository {
                 logger.warn("加载 collection 失败: {}", resp.getMessage());
             }
         } finally {
-            sample.stop(Timer.builder("sba.milvus.ops.latency")
+            sample.stop(Timer.builder("argus.milvus.ops.latency")
                     .tag("op", "load")
                     .register(meterRegistry));
             c.increment();
@@ -112,7 +112,7 @@ public class VectorRepository {
                     .build();
 
             Timer.Sample sample = Timer.start(meterRegistry);
-            Counter c = meterRegistry.counter("sba.milvus.ops", "op", "delete");
+            Counter c = meterRegistry.counter("argus.milvus.ops", "op", "delete");
             try {
                 R<MutationResult> response = client.delete(deleteParam);
                 if (response.getStatus() != 0) {
@@ -123,7 +123,7 @@ public class VectorRepository {
                 logger.info("已删除文件的旧数据: {}, 删除记录数: {}", normalizedPath, deletedCount);
                 return deletedCount;
             } finally {
-                sample.stop(Timer.builder("sba.milvus.ops.latency")
+                sample.stop(Timer.builder("argus.milvus.ops.latency")
                         .tag("op", "delete")
                         .register(meterRegistry));
                 c.increment();
@@ -154,11 +154,11 @@ public class VectorRepository {
                 .build();
 
         Timer.Sample sample = Timer.start(meterRegistry);
-        Counter c = meterRegistry.counter("sba.milvus.ops", "op", "search");
+        Counter c = meterRegistry.counter("argus.milvus.ops", "op", "search");
         try {
             return client.search(searchParam);
         } finally {
-            sample.stop(Timer.builder("sba.milvus.ops.latency")
+            sample.stop(Timer.builder("argus.milvus.ops.latency")
                     .tag("op", "search")
                     .register(meterRegistry));
             c.increment();
@@ -184,7 +184,7 @@ public class VectorRepository {
                 .build();
 
         Timer.Sample sample = Timer.start(meterRegistry);
-        Counter c = meterRegistry.counter("sba.milvus.ops", "op", "insert");
+        Counter c = meterRegistry.counter("argus.milvus.ops", "op", "insert");
         try {
             R<MutationResult> response = client.insert(insertParam);
             if (response.getStatus() != 0) {
@@ -196,7 +196,7 @@ public class VectorRepository {
             logger.debug("向量插入成功: {} 条", count);
             return count;
         } finally {
-            sample.stop(Timer.builder("sba.milvus.ops.latency")
+            sample.stop(Timer.builder("argus.milvus.ops.latency")
                     .tag("op", "insert")
                     .register(meterRegistry));
             c.increment();

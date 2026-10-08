@@ -43,7 +43,7 @@ public class ExecutorConfig {
         executor.setCorePoolSize(8);
         executor.setMaxPoolSize(16);
         executor.setQueueCapacity(100);
-        executor.setThreadNamePrefix("sba-sse-");
+        executor.setThreadNamePrefix("argus-sse-");
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(30);
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
@@ -62,7 +62,7 @@ public class ExecutorConfig {
         executor.setCorePoolSize(1);
         executor.setMaxPoolSize(1);
         executor.setQueueCapacity(100);
-        executor.setThreadNamePrefix("sba-index-");
+        executor.setThreadNamePrefix("argus-index-");
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(30);
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());

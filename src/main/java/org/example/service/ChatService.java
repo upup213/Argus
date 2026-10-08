@@ -9,6 +9,7 @@ import org.example.agent.tool.DateTimeTools;
 import org.example.agent.tool.InternalDocsTools;
 import org.example.agent.tool.QueryLogsTools;
 import org.example.agent.tool.QueryMetricsTools;
+import org.example.common.session.SessionStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.tool.ToolCallback;
@@ -93,7 +94,7 @@ public class ChatService {
      * @param history 历史消息列表
      * @return 完整的系统提示词
      */
-    public String buildSystemPrompt(List<Map<String, String>> history) {
+    public String buildSystemPrompt(List<SessionStore.MessageEntry> history) {
         StringBuilder systemPromptBuilder = new StringBuilder();
         
         // 基础系统提示
@@ -106,9 +107,9 @@ public class ChatService {
         // 添加历史消息
         if (!history.isEmpty()) {
             systemPromptBuilder.append("--- 对话历史 ---\n");
-            for (Map<String, String> msg : history) {
-                String role = msg.get("role");
-                String content = msg.get("content");
+            for (SessionStore.MessageEntry msg : history) {
+                String role = msg.getRole();
+                String content = msg.getContent();
                 if ("user".equals(role)) {
                     systemPromptBuilder.append("用户: ").append(content).append("\n");
                 } else if ("assistant".equals(role)) {
@@ -188,14 +189,14 @@ public class ChatService {
     public String executeChat(ReactAgent agent, String question) throws GraphRunnerException {
         logger.info("执行 ReactAgent.call() - 自动处理工具调用");
         Timer.Sample sample = Timer.start(meterRegistry);
-        Counter c = meterRegistry.counter("sba.llm.calls", "endpoint", "chat");
+        Counter c = meterRegistry.counter("argus.llm.calls", "endpoint", "chat");
         try {
             var response = agent.call(question);
             String answer = response.getText();
             logger.info("ReactAgent 对话完成，答案长度: {}", answer.length());
             return answer;
         } finally {
-            sample.stop(Timer.builder("sba.llm.latency")
+            sample.stop(Timer.builder("argus.llm.latency")
                     .tag("endpoint", "chat")
                     .register(meterRegistry));
             c.increment();

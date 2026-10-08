@@ -79,11 +79,11 @@ public class AiOpsService {
 
         logger.info("调用 Supervisor Agent 开始编排...");
         Timer.Sample sample = Timer.start(meterRegistry);
-        Counter c = meterRegistry.counter("sba.llm.calls", "endpoint", "ai_ops");
+        Counter c = meterRegistry.counter("argus.llm.calls", "endpoint", "ai_ops");
         try {
             return supervisorAgent.invoke(taskPrompt);
         } finally {
-            sample.stop(Timer.builder("sba.llm.latency")
+            sample.stop(Timer.builder("argus.llm.latency")
                     .tag("endpoint", "ai_ops")
                     .register(meterRegistry));
             c.increment();

@@ -1,4 +1,4 @@
-# SuperBizAgent
+# Argus
 
 > 基于 Spring Boot + Spring AI 的智能问答与 AIOps 智能运维系统
 
@@ -6,7 +6,7 @@
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.2.12-brightgreen)](https://spring.io/projects/spring-boot)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-SuperBizAgent 是一个企业级智能业务代理系统，围绕两大核心能力构建：
+Argus 是一个企业级智能业务代理系统，围绕两大核心能力构建：
 
 - **RAG 智能问答**：基于 Milvus 向量检索 + 阿里云 DashScope 通义千问，提供检索增强生成、多轮对话与 SSE 流式输出。
 - **AIOps 智能运维**：基于 Spring AI Agent（Planner-Executor-Replanner）多 Agent 协作，自动完成告警分析、日志查询、智能诊断与报告生成。
@@ -121,7 +121,7 @@ flowchart LR
 ## 项目结构
 
 ```
-SuperBizAgent/
+Argus/
 ├── src/main/java/org/example/
 │   ├── controller/                 # 接口层
 │   │   ├── ChatController.java         # 对话 / 流式 / AIOps / 会话
@@ -214,7 +214,7 @@ docker compose up -d --build
 docker compose -f vector-database.yml up -d
 
 # 2. 启动 Redis（会话 + Embedding 缓存；本地开发可设 SESSION_STORE=memory 跳过）
-docker run -d --name sba-redis -p 6379:6379 redis:7-alpine
+docker run -d --name argus-redis -p 6379:6379 redis:7-alpine
 
 # 3. 注入环境变量后启动应用
 export DASHSCOPE_API_KEY=your-dashscope-key
