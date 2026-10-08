@@ -154,7 +154,6 @@ Argus/
 ├── src/test/java/                  # Mockito 离线单元测试
 ├── aiops-docs/                     # 运维知识库文档
 ├── scripts/ci.sh                   # CI 门禁脚本
-├── docs/plans/                     # 分阶段演进计划（P0~P3）
 ├── Dockerfile                      # 多阶段构建，非 root 运行
 ├── docker-compose.yml              # 全栈编排（app+redis+milvus+etcd+minio+attu）
 ├── vector-database.yml             # 仅向量库编排（本地开发用）
@@ -392,7 +391,7 @@ GitHub Actions 复用同一 `scripts/ci.sh`，见 [`.github/workflows/ci.yml`](.
 - **上传防护**：文件名净化 + 白名单正则 + 归一化路径兜底，防御目录穿越；限制上传扩展名与大小。
 - **容器最小权限**：Dockerfile 以非 root 用户运行，多阶段构建仅保留运行时产物。
 
-> 取舍说明：当前鉴权为最小可用的 API Key 方案，用于防匿名滥用 / 盗刷 LLM 费用 / 误删数据，不提供用户身份、RBAC 与审计；完整方案见 `docs/plans/`。
+> 取舍说明：当前鉴权为最小可用的 API Key 方案，用于防匿名滥用 / 盗刷 LLM 费用 / 误删数据，不提供用户身份、RBAC 与审计。
 
 ---
 
