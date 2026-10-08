@@ -1,0 +1,55 @@
+前端静态依赖本地化清单（Task 6 / T7 前端 CDN 依赖本地化）
+================================================================
+
+目的：前端零外域请求（内网/离线环境可用）。以下文件均按“锁定版本”从 jsDelivr 下载后
+原样落地本地，未做任何内容修改。版本锁死（禁止 @latest / 任何浮动版本）；
+升级任一文件需重新做 XSS 验收与哈希更新，并同步修订本清单。
+
+SHA-256 校验方法（PowerShell）：
+    Get-FileHash -Algorithm SHA256 <file>
+（下列哈希为 Get-FileHash 输出原样记录，十六进制大写。）
+
+加载顺序（index.html <head>，均先于 body 末尾的 app.js 执行）：
+    marked.min.js -> github.min.css -> highlight.min.js -> purify.min.js
+    （DOMPurify 必须在 app.js 之前加载。）
+
+----------------------------------------------------------------
+1) marked.min.js
+   上游 URL : https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js
+   锁定版本 : marked 11.1.1（文件头注释: "marked v11.1.1 - a markdown parser"）
+   SHA-256  : F33A2D78362BDE001670E3A29B01FD0DC16A7F9194D042A775AF89270AB38B74
+   用途     : Markdown 解析（marked.parse / marked.setOptions），
+              供 app.js renderMarkdown() 渲染对话回答与知识库内容。
+
+2) highlight.min.js
+   上游 URL : https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js
+   锁定版本 : highlight.js 11.9.0（文件头注释: "Highlight.js v11.9.0 (git: f47103d4f1)"）
+   SHA-256  : 837A6FA5B0C736B52BBDE2B2B6190F305DA3FC9ED41681DB5321507057B5C846
+   用途     : 代码块语法高亮（window.hljs.getLanguage / hljs.highlight），
+              供 marked.setOptions 的 highlight 回调与 app.js 代码块后处理使用。
+   备注     : 原 index.html 引用的
+              https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/es/highlight.min.js
+              实际不存在（jsDelivr 返回 "Couldn't find the requested file
+              /es/highlight.min.js in highlight.js."，即 404）：highlight.js 11.9.0
+              npm 包内 es/ 目录只有 ESM 模块（es/index.js、es/core.js、es/languages/*），
+              无任何 *.min.js，也没有浏览器 UMD 构建。故改用等价正确的官方浏览器构建
+              （highlightjs/cdn-release 仓库 11.9.0 版的 build/highlight.min.js，
+              即 cdnjs 同源产物，全局暴露 window.hljs），版本仍为 11.9.0。
+
+3) github.min.css
+   上游 URL : https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css
+   锁定版本 : highlight.js 11.9.0（GitHub 主题，注释 "Theme: GitHub ... Updated: 2021-05-15"）
+   SHA-256  : 3A9A5DEF8B9C311E5AE43ABDE85C63133185EED4F0D9F67FEA4B00A8308CF066
+   用途     : 代码高亮 GitHub 主题样式（.hljs 及 token 配色）。
+
+4) purify.min.js
+   上游 URL : https://cdn.jsdelivr.net/npm/dompurify@3.4.16/dist/purify.min.js
+   锁定版本 : DOMPurify 3.4.16（文件首行注释:
+              "/*! @license DOMPurify 3.4.16 | (c) Cure53 and other contributors | ..."）
+   SHA-256  : 2C90A9B46D6463F26038A29B686E82BC91DE01FDAC9D5229E7CFE3B360134EA2
+   用途     : HTML 输出净化（XSS 渲染清洗），T5 renderMarkdown() 将 marked.parse
+              结果统一经 DOMPurify.sanitize 后输出，本阶段唯一新引入的前端依赖。
+
+----------------------------------------------------------------
+版本锁死声明：以上 4 个文件的版本号与 SHA-256 一一对应，升级需重新做 XSS 验收与
+哈希更新（同时复核加载顺序：marked -> highlight 样式 -> highlight -> purify -> app.js）。

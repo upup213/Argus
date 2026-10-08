@@ -1,0 +1,143 @@
+server:
+  port: 9900
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+
+file:
+  upload:
+    path: ./uploads
+    allowed-extensions: txt,md
+
+milvus:
+  host: localhost
+  port: 19530
+  username: ""
+  password: ""
+  database: default
+  timeout: 10000
+  collection-name: biz  # change to biz_v2 when ready to switch
+  search:
+    nprobe: 16
+
+# Spring AI Alibaba DashScope 配置
+spring:
+  ai:
+    dashscope:
+      api-key: ${DASHSCOPE_API_KEY}  # 从环境变量读取，无默认值，缺失时启动失败
+      chat:
+        options:
+          timeout: 180000  # 超时时间180秒（3分钟）
+      retry:
+        max-attempts: 3  # 最大重试次数
+        backoff:
+          initial-interval: 2000  # 初始重试间隔2秒
+          multiplier: 2  # 重试间隔倍数
+          max-interval: 10000  # 最大重试间隔10秒
+
+    # Spring AI MCP 客户端配置
+    # 如果使用mock数据，请注释这部分内容
+    mcp:
+      client:
+        enabled: true
+        name: tencent-mcp-server
+        version: 1.0.0
+        request-timeout: 60s
+        type: ASYNC
+        sse:
+          connections:
+            tencent-cls:
+              url: https://mcp-api.tencent-cloud.com
+              sse-endpoint: ${MCP_TENCENT_CLS_SSE_ENDPOINT}  # SSE端点路径（含凭证），从环境变量读取，无默认值
+    data:
+      redis:
+        host: ${REDIS_HOST:localhost}
+        port: ${REDIS_PORT:6379}
+        password: ${REDIS_PASSWORD:}
+
+# 阿里云 DashScope Embedding API 配置
+dashscope:
+  api:
+    key: ${DASHSCOPE_API_KEY}  # 从环境变量读取，无默认值（用于自定义配置）
+  embedding:
+    model: text-embedding-v4  # 阿里云文本向量化模型
+    batch-size: 10  # 批量向量化时每次请求的文本数
+
+index:
+  insert:
+    batch-size: 256  # 批量插入 Milvus 时每批的记录数
+  build:
+    max-retries: 2
+  rebuild:
+    cron: "-"  # disabled by default, enable per environment like "0 0 3 * * *"
+
+# 对外 API Key 鉴权配置（供后续鉴权任务使用）
+security:
+  api-key: ${APP_API_KEY}  # 从环境变量读取，无默认值，缺失时启动失败
+  allowed-origins: ${APP_ALLOWED_ORIGINS:}  # CORS 白名单（逗号分隔来源列表），空默认=拒绝一切跨域
+
+# 文档分片配置
+document:
+  chunk:
+    max-size: 800  # 每个分片最大字符数
+    overlap: 100   # 分片之间的重叠字符数
+
+# RAG 配置
+rag:
+  top-k: 3  # 检索返回的最相似文档数量
+  model: "qwen3-max"  # 大语言模型名称
+
+# Prometheus 配置
+prometheus:
+  base-url: http://localhost:9090
+  timeout: 10  # 超时时间（秒）
+  mock-enabled: false  # 是否启用 Mock 模式（用于测试）
+
+# CLS 云日志服务配置
+cls:
+  mock-enabled: false  # 是否启用 Mock 模式（用于测试，设为 true 返回与告警关联的模拟日志数据）
+
+# Actuator + Prometheus 可观测性配置
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: never
+
+# 日志输出格式（含 MDC traceId）
+logging:
+  pattern:
+    level: "%X{traceId:-} %5p [%t] %-40.40logger{39} : %m%n"
+
+# 索引文件上传大小限制
+index:
+  max-file-size: 10MB
+
+# Embedding 结果缓存（Redis）
+cache:
+  embedding:
+    ttl: 7d
+
+# Resilience4j - 限流 / 超时 / 重试
+resilience4j:
+  ratelimiter:
+    instances:
+      embedding: { limitForPeriod: 4, limitRefreshPeriod: 1s }
+      llm: { limitForPeriod: 8, limitRefreshPeriod: 1s }
+  retry:
+    instances:
+      embedding: { maxAttempts: 3, waitDuration: 500ms, enableExponentialBackoff: true, backoffMultiplier: 2 }
+  timelimiter:
+    instances:
+      embedding: { timeoutDuration: 30s }
+
+# Session 治理配置（T4）
+session:
+  max-size: 10000  # 内存会话最大数量，超限后按 LRU 淘汰
+  ttl: 24h         # 会话存活时间，超时后定时清理
+  store: redis     # 存储后端："redis" 或 "memory"（演示模式）

@@ -1,0 +1,15 @@
+# 可选 CI 模板：复用本地 scripts/ci.sh 作为单一门禁来源，
+# 不在 yml 中重复编写测试命令，避免两套逻辑漂移。
+# 所有测试均为 Mockito 离线单测，无需注入 DASHSCOPE_API_KEY。
+name: ci
+on: [push, pull_request]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - run: bash scripts/ci.sh

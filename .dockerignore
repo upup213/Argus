@@ -1,0 +1,12 @@
+target/
+uploads/
+volumes/
+.git/
+.github/
+.idea/
+trae-remote-official/
+*.iml
+*.md
+.DS_Store
+.env
+*.log
